@@ -50,6 +50,8 @@ Open `http://127.0.0.1:5000`
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | spotify:track:xxxxx | INS181303xxx | xxx(From "xxx") | Best Of Palak Muchhal | Palak Muchhal;Arijit Singh | 2020-06-09 | 304899 | 76 | false | 31yc6sv47oty65ur3k6ytov2p6ui | 2026-10-27T13:12:18Z | bollywood,hindi pop,gujarati garba,desi,bangla pop | T-Series | 0.644 | 0.517 | 9 | -6.707 | 0 | 0.0273 | 0.521 | 0.00000327 | 0.0905 | 0.259 | 106.906 | 4 |
 
+To export a Spotify playlist as CSV, log in at [exportify.net](https://exportify.net), select your playlist, and download the CSV.
+
 **JSON**:
 ```json
 [
@@ -58,9 +60,10 @@ Open `http://127.0.0.1:5000`
 ```
 
 ## Workflow
-1. Upload your CSV/JSON.
-2. Enter the local download folder path (e.g. `./downloads` or `/home/robin/Music`).
-3. Click **Start Download**.
-4. Watch progress; MP3s are saved directly to that folder.
+1. Log in at [exportify.net](https://exportify.net), select your Spotify playlist, and download it as CSV.
+2. Upload your CSV/JSON.
+3. Enter the local download folder path (e.g. `./downloads` or `/home/robin/Music`).
+4. Click **Start Download**.
+5. Watch progress; MP3s are saved directly to that folder.
 
 Only download content you have the right to.
