@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+.download_config.json
+*.mp3
+downloads/

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Song Downloader</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 16px; line-height: 1.5; color: #222; background: #fafafa; }
+  h2 { margin-top: 0; font-size: 22px; }
+  .card { border: 1px solid #ddd; padding: 20px; border-radius: 10px; background: #fff; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  label { display: block; margin: 12px 0 6px; font-weight: 600; font-size: 13px; color: #444; }
+  input[type=file], input[type=text] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+  button { padding: 10px 22px; background: #007bff; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; margin-top: 8px; }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  button:hover:not(:disabled) { background: #0056b3; }
+  .progress { background: #e9ecef; height: 16px; border-radius: 8px; overflow: hidden; margin: 10px 0; border: 1px solid #ddd; }
+  .progress-bar { background: #007bff; height: 100%; width: 0%; transition: width 0.3s; }
+  #status { margin: 8px 0; font-size: 14px; }
+  .ok { color: #198754; } .err { color: #dc3545; } .info { color: #666; } .warn { color: #ffc107; }
+  .hint { font-size: 12px; color: #666; margin-top: 6px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f4f4f4; font-weight: 600; }
+  tr.fail td { background: #fdecea; }
+  tr.ok td { background: #f0fff4; }
+  .debug { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: #666; max-width: 100%; overflow-wrap: break-word; white-space: pre-wrap; }
+  .logbox { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 6px; max-height: 260px; overflow-y: auto; font-size: 12px; border: 1px solid #eee; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+  .badge-ok { background: #d1e7dd; color: #0f5132; }
+  .badge-fail { background: #f8d7da; color: #842029; }
+  .tabs { display: flex; gap: 10px; margin-bottom: 10px; }
+  .tab { background: #eee; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .tab.active { background: #007bff; color: #fff; }
+  .tabpanel { display: none; }
+  .tabpanel.active { display: block; }
+  #empty { color: #888; font-style: italic; }
+</style>
+</head>
+<body>
+<h2>Song Downloader</h2>
+
+<div class="card">
+  <form id="uploadForm" onsubmit="return false;">
+    <label>Upload CSV or JSON</label>
+    <input type="file" id="fileInput" accept=".csv,.json" required>
+    <div id="preview" class="hint"></div>
+    <label>Download folder path (on this PC)</label>
+    <input type="text" id="pathInput" placeholder="./downloads" value="{{ saved_path|default('', true) }}">
+    <div class="hint">Example: /home/robin/Music or C:\Users\You\Music</div>
+
+    <label style="margin-top:14px;display:block;font-weight:600;font-size:13px;color:#444;">Spotify API (optional, improves accuracy)</label>
+    <input type="text" id="spotifyClientId" placeholder="Spotify Client ID" value="{{ spotify_client_id|default('', true) }}">
+    <input type="password" id="spotifyClientSecret" placeholder="Spotify Client Secret" value="{{ spotify_client_secret|default('', true) }}">
+    <div class="hint">Get these from https://developer.spotify.com/dashboard. Leave blank to use CSV columns only.</div>
+
+    <label style="margin-top:14px;display:block;font-weight:600;font-size:13px;color:#444;">YouTube cookies (optional, fixes auth errors)</label>
+    <input type="file" id="cookiesFile" accept=".txt">
+    <input type="text" id="cookiesInput" placeholder="chrome | firefox | edge | /path/to/cookies.txt">
+    <div class="hint">Or upload cookies.txt exported from your logged-in browser. Browser name (chrome, firefox, edge...) also works.</div>
+
+    <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-weight:normal;font-size:13px;">
+      <input type="checkbox" id="rememberInput" checked> Remember this path on restart
+    </label>
+    <button type="button" id="dlBtn" disabled>Start Download</button>
+    <button type="button" id="retryBtn" disabled style="display:none;margin-left:8px;background:#ff9800;">Retry Failed</button>
+  </form>
+  <div class="progress"><div class="progress-bar" id="bar"></div></div>
+  <div id="status" class="info">Waiting&hellip;</div>
+</div>
+
+<div class="card">
+  <div class="tabs">
+    <button class="tab active" id="tabSongs">Songs</button>
+    <button class="tab" id="tabDebug">Debug Log</button>
+  </div>
+  <div id="panelSongs" class="tabpanel active">
+    <table id="songsTable">
+      <thead><tr><th>#</th><th>Artist</th><th>Title</th><th>Album</th><th>Status</th><th>File</th><th>Error</th></tr></thead>
+      <tbody id="songsBody"></tbody>
+    </table>
+    <div id="empty" style="margin-top:10px;">No songs yet. Upload a file and start download.</div>
+  </div>
+  <div id="panelDebug" class="tabpanel">
+    <div class="logbox" id="debugLog"></div>
+  </div>
+</div>
+
+<script>
+let uploadedPath = null;
+let currentJob = null;
+let currentRetryJob = null;
+let cookiesPath = null;
+document.getElementById('pathInput').value = "{{ saved_path|default('', true) }}";
+
+document.getElementById('cookiesFile').addEventListener('change', async function(e) {
+  const fd = new FormData();
+  fd.append('file', e.target.files[0]);
+  try {
+    const res = await fetch('/upload-cookies', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.cookies_path) {
+      cookiesPath = data.cookies_path;
+      document.getElementById('cookiesInput').value = cookiesPath;
+      document.getElementById('status').textContent = 'Cookies file: ' + (data.name || '');
+      document.getElementById('status').className = 'ok';
+    } else {
+      document.getElementById('status').textContent = 'Cookies error: ' + (data.error || 'unknown');
+      document.getElementById('status').className = 'err';
+    }
+  } catch (err) {
+    console.error('Cookies upload failed:', err);
+    document.getElementById('status').textContent = 'Cookies upload error: ' + err;
+    document.getElementById('status').className = 'err';
+  }
+});
+
+function openTab(name) {
+  document.querySelectorAll('.tabpanel').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('panel' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+}
+
+document.getElementById('tabSongs').addEventListener('click', function() { openTab('songs'); });
+document.getElementById('tabDebug').addEventListener('click', function() { openTab('debug'); });
+
+document.getElementById('fileInput').addEventListener('change', async function(e) {
+  console.log('File selected:', e.target.files[0] ? e.target.files[0].name : null);
+  const fd = new FormData();
+  fd.append('file', e.target.files[0]);
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    console.log('Upload response:', data);
+    const preview = document.getElementById('preview');
+    const status = document.getElementById('status');
+    if (data.file_path) {
+      uploadedPath = data.file_path;
+      document.getElementById('dlBtn').disabled = false;
+      status.textContent = 'Uploaded: ' + (data.name || '');
+      status.className = 'ok';
+      if (data.preview && data.preview.length) {
+        preview.textContent = 'Preview: ' + data.preview.map(function(s) { return (s.artist || '') + ' - ' + (s.title || ''); }).join(' | ');
+      } else {
+        preview.textContent = data.preview_error ? 'Preview error: ' + data.preview_error : '';
+      }
+    } else {
+      status.textContent = 'Error: ' + (data.error || 'unknown');
+      status.className = 'err';
+    }
+  } catch (err) {
+    console.error('Upload failed:', err);
+    document.getElementById('status').textContent = 'Upload error: ' + err;
+    document.getElementById('status').className = 'err';
+  }
+});
+
+document.getElementById('dlBtn').addEventListener('click', async function() {
+  const out = document.getElementById('pathInput').value.trim() || './downloads';
+  const remember = document.getElementById('rememberInput').checked;
+  const spotifyClientId = document.getElementById('spotifyClientId').value.trim();
+  const spotifyClientSecret = document.getElementById('spotifyClientSecret').value.trim();
+  const cookies = cookiesPath || document.getElementById('cookiesInput').value.trim();
+  try {
+    const res = await fetch('/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: uploadedPath, output_dir: out, remember_path: remember, spotify_client_id: spotifyClientId, spotify_client_secret: spotifyClientSecret, cookies: cookies }),
+    });
+    const data = await res.json();
+    console.log('Download response:', data);
+    if (!data.job_id) {
+      document.getElementById('status').textContent = 'Error: ' + (data.error || 'unknown');
+      document.getElementById('status').className = 'err';
+      return;
+    }
+    currentJob = data.job_id;
+    document.getElementById('dlBtn').disabled = true;
+    document.getElementById('empty').style.display = 'none';
+    poll(currentJob);
+  } catch (err) {
+    console.error('Download start failed:', err);
+    document.getElementById('status').textContent = 'Start error: ' + err;
+    document.getElementById('status').className = 'err';
+  }
+});
+
+document.getElementById('retryBtn').addEventListener('click', async function() {
+  if (!currentJob) {
+    document.getElementById('status').textContent = 'No active job. Re-upload the CSV and click Start Download — it skips existing files automatically.';
+    document.getElementById('status').className = 'warn';
+    return;
+  }
+  try {
+    const res = await fetch('/retry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: currentJob }),
+    });
+    const data = await res.json();
+    if (!data.job_id) {
+      document.getElementById('status').textContent = 'Retry error: ' + (data.error || 'unknown');
+      document.getElementById('status').className = 'err';
+      return;
+    }
+    currentRetryJob = data.job_id;
+    document.getElementById('retryBtn').disabled = true;
+    poll(currentRetryJob);
+  } catch (err) {
+    console.error('Retry start failed:', err);
+    document.getElementById('status').textContent = 'Retry start error: ' + err;
+    document.getElementById('status').className = 'err';
+  }
+});
+
+async function poll(jobId) {
+  try {
+    const res = await fetch('/status/' + jobId);
+    const st = await res.json();
+    if (!st || st.status === 'not_found') return;
+
+    const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
+    document.getElementById('bar').style.width = pct + '%';
+    document.getElementById('status').textContent =
+      st.status + ' - ' + st.done + '/' + st.total + ' succeeded, ' + st.failed + ' failed';
+
+    const tbody = document.getElementById('songsBody');
+    if (st.songs && st.songs.length) {
+      let html = '';
+      for (var i = 0; i < st.songs.length; i++) {
+        var s = st.songs[i];
+        var cls = s.status === 'ok' ? 'ok' : 'fail';
+        var badge = s.status === 'ok'
+          ? '<span class="badge badge-ok">OK</span>'
+          : '<span class="badge badge-fail">FAIL</span>';
+        var err = s.error ? '<div class="debug">' + escapeHtml(s.error) + '</div>' : '';
+        html += '<tr class="' + cls + '">' +
+          '<td>' + (s.idx || i + 1) + '</td>' +
+          '<td>' + escapeHtml(s.artist) + '</td>' +
+          '<td>' + escapeHtml(s.title) + '</td>' +
+          '<td>' + escapeHtml(s.album) + '</td>' +
+          '<td>' + badge + '</td>' +
+          '<td>' + escapeHtml(s.file) + '</td>' +
+          '<td>' + err + '</td>' +
+          '</tr>';
+      }
+      tbody.innerHTML = html;
+
+      var debugLog = document.getElementById('debugLog');
+      var dbgHtml = '';
+      for (var j = 0; j < st.songs.length; j++) {
+        var s2 = st.songs[j];
+        if (s2.debug) {
+          dbgHtml += '[' + (s2.idx || j + 1) + '] ' + escapeHtml(s2.artist) + ' - ' + escapeHtml(s2.title) + '\n' + s2.debug + '\n\n';
+        }
+      }
+      debugLog.textContent = dbgHtml;
+      debugLog.scrollTop = debugLog.scrollHeight;
+    }
+
+    if (st.logs && st.logs.length) {
+      var logEl = document.getElementById('debugLog');
+      var last = st.logs[st.logs.length - 1];
+      var line = '[' + last.level + '] ' + last.msg + '\n';
+      if (!logEl.textContent.endsWith(line)) {
+        logEl.textContent += line;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    if (st.status === 'running' || st.status === 'starting') {
+      setTimeout(function() { poll(jobId); }, 1200);
+    } else {
+      document.getElementById('dlBtn').disabled = false;
+      // Show retry button if there are failed songs
+      if (st.failed && st.failed > 0 && st.status === 'completed') {
+        document.getElementById('retryBtn').disabled = false;
+        document.getElementById('retryBtn').style.display = 'inline-block';
+      } else {
+        document.getElementById('retryBtn').style.display = 'none';
+      }
+    }
+  } catch (err) {
+    console.error('Poll error:', err);
+  }
+}
+
+function escapeHtml(t) {
+  if (!t) return '';
+  return String(t).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+</script>
+</body>
+</html>
