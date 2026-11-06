@@ -15,10 +15,10 @@ python app.py
 Open `http://127.0.0.1:5000`
 
 ## File formats
-**CSV** (header row required):
+**CSV** (header row required; Spotify export format supported):
 ```csv
-artist,title,album
-Artist One,Song Title,Album Name
+Track URI,ISRC,Track Name,Album Name,Artist Name(s),Release Date,Duration (ms),Popularity,Explicit,Added By,Added At,Genres,Record Label,Danceability,Energy,Key,Loudness,Mode,Speechiness,Acousticness,Instrumentalness,Liveness,Valence,Tempo,Time Signature
+spotify:track:xxxxx,INS181303xxx,xxx(From "xxx"),Best Of Palak Muchhal,Palak Muchhal;Arijit Singh,2020-06-09,304899,76,false,31yc6sv47oty65ur3k6ytov2p6ui,2026-10-27T13:12:18Z,bollywood,hindi pop,gujarati garba,desi,bangla pop,T-Series,0.644,0.517,9,-6.707,0,0.0273,0.521,0.00000327,0.0905,0.259,106.906,4
 ```
 
 **JSON**:
